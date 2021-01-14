@@ -8,7 +8,9 @@ const Constants = {
     SCEPTER_WIDTH: 50,
     SCEPTER_HEIGHT: 66.59,
     COIN_WIDTH: 25,
-    COIN_GAP: 50,  
+    COIN_GAP: 50,
+    COINBAR_WIDTH: 150,
+    COINBAR_HEIGHT: 45 
 }
 
 export default Constants;

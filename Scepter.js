@@ -39,7 +39,7 @@ export default class Scepter extends Component {
                  height: height,
                  transform: [{ rotate: rotation}]
              }}
-             resizeMode="stretch"
+             resizeMode="center"
              source={image}
             />
       )

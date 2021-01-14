@@ -27,6 +27,7 @@ const Images = {
     coin8: require('./assets/images/coin/Gold_28.png'),
     coin9: require('./assets/images/coin/Gold_29.png'),
     coin10: require('./assets/images/coin/Gold_30.png'),
+    coinbar: require('./assets/images/coinbar.png')
    
 }
 

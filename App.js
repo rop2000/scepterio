@@ -1,8 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import React, { Component, UseState } from 'react';
-import { StyleSheet, Text, View, Button, TouchableOpacity, Image, ActivityIndicator, ImageBackground, Animated } from 'react-native';
+import { SplashScreen, StyleSheet, Text, View, Button, TouchableOpacity, Image, ActivityIndicator, ImageBackground, Animated } from 'react-native';
 import * as Font from 'expo-font';
-import { AppLoading} from 'expo';
 import { Audio } from 'expo-av';
 import { GameEngine } from 'react-native-game-engine'; 
 import Matter from 'matter-js';
@@ -11,6 +10,10 @@ import Scepter from './Scepter';
 import Floor from './Floor';
 import Physics, { resetPipes, resetCoins } from './Physics';
 import Images from './Images';
+import { AdMobInterstitial } from 'expo-ads-admob';
+import * as Haptics from 'expo-haptics';
+import Storage from './Storage'
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // https://docs.expo.io/versions/v36.0.0/sdk/local-authentication/
 // https://docs.expo.io/versions/v36.0.0/sdk/local-authentication/
@@ -28,16 +31,26 @@ export default class App extends Component {
       gameStarted: false,
       running: true,
       score: 0,
+      highscore: 0,
+      coins: 0,
       fontLoaded: false,
+      isReady: false,
+      scoreLength: 1,
+      gamesLost: 0,
+      showAdView: false,
     }
 
   }
 
 
 async componentDidMount(){
- await Font.loadAsync({
+  this.readCoinData(Storage.COIN_KEY)
+  this.readHighscoreData(Storage.HIGHSCORE_KEY)
+
+  await Font.loadAsync({
     '04B_19': require('./assets/fonts/04B_19.ttf'),
     });
+
     this.setState({ fontLoaded: true})
 
    Audio.setAudioModeAsync({
@@ -51,6 +64,16 @@ async componentDidMount(){
 
     let backgroundMusic = require('./assets/audio/Menu_Music.mp3')
     this._loadNewPlaybackInstance(true,this.playbackInstance,true, backgroundMusic);
+    console.log("Styles Length " + styles.score.left)
+
+    AdMobInterstitial.addEventListener("interstitialDidLoad", () => (setTimeout(() => {
+      this.setState({ showAdView: false, running: true}),
+      console.log("Open Listener Cpnnected Did Load" + "running: " + this.state.running)
+    }), 1000)
+    );
+
+    AdMobInterstitial.addEventListener("interstitialWillLeaveApplication", () => (setTimeout(() => this.setState({ gamesLost: 0, running: false}),1000)));
+// AdMobInterstitial.addEventListener("interstitialDidClose", () => this.setState({ }));
   }
 
 
@@ -62,10 +85,10 @@ async componentDidMount(){
     }
     const source = sourceMusic;
     const initialStatus = {
-      shouldPlay: true,
+      shouldPlay: playing,
       rate: 1.0,
       shouldCorrectPitch: true,
-      volume: 1.0,
+      volume: 0.75,
       isMuted: false,
     };
 
@@ -78,13 +101,6 @@ async componentDidMount(){
     audioInstance.setIsLoopingAsync(looping);
     audioInstance.playAsync();
   }
-
-  componentWillUnmount() {
-    this.playbackInstance.unloadAsync();
-    this.coinPlaybackInstance.unloadAsync();
-    console.log('unmount');
-  }
-
 
   setupWorld = () => {
       let engine = Matter.Engine.create({ enableSleeping: false});
@@ -110,6 +126,7 @@ async componentDidMount(){
 
 
       Matter.World.add(world, [scepter, floor1, floor2] );
+      
 
       Matter.Events.on(engine, "collisionStart", (event) => {
         let pairs = event.pairs;
@@ -124,7 +141,7 @@ async componentDidMount(){
 
 
 
-
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy) 
         this.gameEngine.dispatch({ type: "game-over"});
 
       });
@@ -138,8 +155,6 @@ async componentDidMount(){
         })
 
       });
-
-
 
       return {
         physics: { engine: engine, world: world },
@@ -156,31 +171,149 @@ async componentDidMount(){
   console.log('coin music yeeted');
  }
 
- onEvent = (e) => {
+ async playAd(){
+  await AdMobInterstitial.setAdUnitID('ca-app-pub-6265666136721610/4800024631'); // Test ID, Replace with your-admob-unit-id
+  await AdMobInterstitial.requestAdAsync({ servePersonalizedAds: true});
+  await AdMobInterstitial.showAdAsync(); 
+  
+ }
+ 
+ storeCoinData = async (key, value) => {
+  try {
+    await AsyncStorage.setItem(key,value)
+    console.log('Coin Data successfully saved')
+  } catch (e) {
+    console.log('Failed to save the data to the storage')
+  }
+}
+
+storeHighscoreData = async (key, value) => {
+  try {
+    
+    if (value > this.state.highscore){
+      await AsyncStorage.setItem(key,value)
+      this.setState({
+        highscore: value
+      });
+      console.log('Highscore Data successfully saved')
+    }
+    else{
+      console.log("This game's score was not the highscore")
+      console.log("")
+    }
+    
+  } catch (e) {
+    console.log('Failed to save the data to the storage')
+  }
+}
+
+readCoinData = async (key) => {
+  try {
+    const value = await AsyncStorage.getItem(key)
+    if(value !== null) {
+      // value previously stored
+      this.state.coins = parseInt(value);
+      console.log("value read " + value);
+    } else {
+      console.log("Read value is null")
+    }
+  } catch(e) {
+    // error reading value
+    console.log("cannot read value from storage")
+  }
+}
+
+readHighscoreData = async (key) => {
+  try {
+    const value = await AsyncStorage.getItem(key);
+    if(value !== null) {
+      // value previously stored
+      this.setState({
+        highscore: parseInt(value)
+      });
+
+      console.log("value read " + value);
+      return this.state.highscore;
+    } else {
+      console.log("Read value is null" + value)
+      this.setState({
+        highscore: 0
+      });
+      return 0;
+    }
+  } catch(e) {
+    // error reading value
+    console.log("cannot read value from storage")
+    return 0;
+  }
+}
+
+ onEvent = async (e) => {
     if (e.type === "game-over"){
       this.setState({
-        running: false
+        gamesLost: this.state.gamesLost + 1
       });
+      console.log("gamesLost: " + this.state.gamesLost);
+
+      this.storeCoinData(Storage.COIN_KEY,this.state.coins.toString())
+      if(this.state.gamesLost === 5){
+        this.playAd();
+        //weird error where ad makes the gamesLost go up by 2 so set at -2
+        this.setState({
+          showAdView: true,
+          gamesLost: -2,
+        });
+      } else {
+        this.setState({
+          running: false,
+        });
+      }
+      
     } else if (e.type === "score") {
         this.setState({
           score: this.state.score + 1
         })
         console.log(this.state.score)
+     
     }
     else if (e.type === "closeMainMenu"){
       this.setState({
-        gameStarted: true
+        gameStarted: true,
+        running: true,
       })
     }
     else if (e.type === "coinScore"){
       this.setState({
-        score: this.state.score + 2
+        score: this.state.score + 2,
+        coins: this.state.coins + 1
       })
+     
       this.playCoinSound();
       console.log(this.state.score)
      
     }
   }
+
+  scoreStyle = () => {
+    console.log("Style Length " + styles.score.left);
+    return {
+      position: 'absolute',
+      color: 'white',
+      fontSize: 72,
+      top: 50,
+      left: Constants.MAX_WIDTH /2 - 20 - ((this.getLength(this.state.score) - 1) *20),
+      textAlign: 'center',
+      textShadowColor: '#444444',
+      textShadowOffset: {width: 2, height: 2},
+      textShadowRadius: 2,
+      fontFamily: '04B_19',
+    }
+  }
+
+  getLength = (number) => {
+      return number.toString().length;
+  }
+
 
   startGame = () => {
     this.setState({
@@ -189,6 +322,7 @@ async componentDidMount(){
   }
 
   returnToMainMenu = () => {
+    this.storeHighscoreData(Storage.HIGHSCORE_KEY,this.state.score.toString())
     resetPipes();
     resetCoins();
     this.gameEngine.swap(this.setupWorld());
@@ -196,17 +330,28 @@ async componentDidMount(){
       gameStarted: false,
       running: true,
       score: 0,
+      scoreLength: 1,
     })
   }
 
-  reset = () => {
+  reset = async () => {
+      this.storeHighscoreData(Storage.HIGHSCORE_KEY,this.state.score.toString())
       resetPipes();
       resetCoins();
       this.gameEngine.swap(this.setupWorld());
       this.setState({
         running: true,
-        score: 0
+        score: 0,
+        scoreLength: 1,
       });
+  }
+
+  async componentWillUnmount() {
+    AdMobInterstitial.removeAllListeners();
+    await this.playbackInstance.unloadAsync();
+    await this.coinPlaybackInstance.unloadAsync();
+    console.log('unmount');
+   
   }
 
   render() {
@@ -228,7 +373,9 @@ async componentDidMount(){
         <StatusBar hidden={true}/>
       </GameEngine>
     
-      <Text style={styles.score}>{this.state.score}</Text> 
+      <Text style={this.scoreStyle()}>{this.state.score}</Text> 
+      <Image source={Images.coinbar} style={styles.coinbar} resizeMode="stretch" />
+      <Text style={styles.coinText}>{this.state.coins}</Text> 
       {/* https://stackoverflow.com/questions/45263904/how-to-define-image-as-a-background-button */}
       {!this.state.gameStarted && 
         
@@ -246,11 +393,38 @@ async componentDidMount(){
               <View style={styles.menuButtonView}>
                 <Text style={styles.menuButtonText}>Tap to Start</Text>
               </View>
-            </TouchableOpacity>        
+            </TouchableOpacity> 
+
+            <TouchableOpacity onPress={async () => {await this.playAd()}} style={styles.menuTouchableButton}>
+              <Image
+                source={Images.purpleButton}
+                style={styles.menuButtonImage} 
+              />
+              <View style={styles.menuButtonView}>
+                <Text style={styles.menuButtonText}>MONIESSSS!</Text>
+              </View>
+            </TouchableOpacity> 
+
+
+
+
+            <Text style={styles.highScore}>{"Highscore: " + this.state.highscore }</Text>        
           </ImageBackground>
         </View>
       
 }
+
+      {this.state.showAdView && <View style={styles.fullScreen}>
+              <Image
+                source={Images.purpleButton}
+                style={styles.menuButtonImage} 
+              />
+              <View style={styles.menuButtonView}>
+                <Text style={styles.menuButtonText}>Ad Loading...</Text>
+              </View>
+            </View> }
+            
+
 {/* <TouchableOpacity onPress={this.startGame} style={styles.fullScreenButton}> */}
       
       {!this.state.running && <TouchableOpacity onPress={this.reset} style={styles.fullScreenButton}>
@@ -265,7 +439,8 @@ async componentDidMount(){
               <View style={styles.menuButtonView}>
                 <Text style={styles.menuButtonText}>Main Menu</Text>
               </View>
-            </TouchableOpacity>  
+            </TouchableOpacity> 
+            
         </View>
       </TouchableOpacity>}
     </View>
@@ -288,7 +463,8 @@ async componentDidMount(){
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff'
+    backgroundColor: 'transparent',
+    textAlign: 'center'
   },
   gameMenu: {
     left: Constants.MAX_WIDTH / 10,
@@ -304,6 +480,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: 'white',
     fontSize: 72,
+    textShadowColor: '#444444',
+    textShadowOffset: {width: 2, height: 2},
+    textShadowRadius: 2,
+    fontFamily: '04B_19',
+  },
+  highScore: {
+    textAlign: 'center',
+    color: 'white',
+    fontSize: 30,
     textShadowColor: '#444444',
     textShadowOffset: {width: 2, height: 2},
     textShadowRadius: 2,
@@ -356,10 +541,27 @@ const styles = StyleSheet.create({
     fontSize: 72,
     top: 50,
     left: Constants.MAX_WIDTH /2 - 20,
+    textAlign: 'center',
     textShadowColor: '#444444',
     textShadowOffset: {width: 2, height: 2},
     textShadowRadius: 2,
     fontFamily: '04B_19',
+  },
+  coinText: {
+    position: 'absolute',
+    color: 'white',
+    top: 63,
+    fontFamily: '04B_19',
+    fontSize: 30,
+    left: Constants.MAX_WIDTH /1.5 + 22,
+  },
+  coinbar:{
+    position: 'absolute',
+    top: 55,
+    width: Constants.COINBAR_WIDTH,
+    height: Constants.COINBAR_HEIGHT,
+    left: Constants.MAX_WIDTH / 1.5 - 20,
+    flex: 1
   },
   fullScreenButton: {
     position: 'absolute',

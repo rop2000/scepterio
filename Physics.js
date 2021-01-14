@@ -3,6 +3,8 @@ import Constants from './Constants';
 import Pipe from './Pipe';
 import PipeTop from './PipeTop';
 import Coin from './Coin';
+import * as Haptics from 'expo-haptics';
+
 
 let tick = 0;
 let pose = 1;
@@ -248,6 +250,7 @@ const Physics = (entities, { touches, time, dispatch }) => {
             {
                 // Matter.Body.applyForce(entities[key].body, {x: entities[key].body.position.x, y: entities[key].body.position.y}, {x: 50, y: 100})
                 Matter.Body.translate(entities[key].body, {x: Constants.MAX_WIDTH, y: 0});
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light) 
                 dispatch({ type: "coinScore"});
                 console.log("at same spot");
             }
