@@ -2,6 +2,7 @@ const Images = {
     background: require('./assets/images/background.gif'),
     purpleMenu: require('./assets/images/purple_panel.png'),
     purpleButton: require('./assets/images/purple_button.png'),
+    blueButton: require('./assets/images/blue_button.png'),
     floor: require('./assets/images/floor_tile.png'),
     pipeCore: require('./assets/images/pipe_tile.png'),
     pipeTop: require('./assets/images/pipe_top.png'),

@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import React, { Component, UseState } from 'react';
-import { SplashScreen, StyleSheet, Text, View, Button, TouchableOpacity, Image, ActivityIndicator, ImageBackground, Animated } from 'react-native';
+import { StyleSheet, Text, View, Button, Share, Alert, TouchableOpacity, Image, ActivityIndicator, ImageBackground, Animated } from 'react-native';
 import * as Font from 'expo-font';
 import { Audio } from 'expo-av';
 import { GameEngine } from 'react-native-game-engine'; 
@@ -8,12 +8,16 @@ import Matter from 'matter-js';
 import Constants from './Constants';
 import Scepter from './Scepter';
 import Floor from './Floor';
+import  CoinsAlert from './Alert';
 import Physics, { resetPipes, resetCoins } from './Physics';
 import Images from './Images';
 import { AdMobInterstitial } from 'expo-ads-admob';
 import * as Haptics from 'expo-haptics';
 import Storage from './Storage'
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Asset } from 'expo-asset';
+import AppLoading from 'expo-app-loading';
+
 
 // https://docs.expo.io/versions/v36.0.0/sdk/local-authentication/
 // https://docs.expo.io/versions/v36.0.0/sdk/local-authentication/
@@ -26,7 +30,7 @@ export default class App extends Component {
     this.entities = this.setupWorld();
     this.playbackInstance = null;
     this.coinPlaybackInstance = null;
-    this.coinMusicSource = require('./assets/audio/coin1.wav')
+    this.coinMusicSource = require('./assets/audio/coin1.wav');
     this.state = {
       gameStarted: false,
       running: true,
@@ -72,9 +76,31 @@ async componentDidMount(){
     }), 1000)
     );
 
-    AdMobInterstitial.addEventListener("interstitialWillLeaveApplication", () => (setTimeout(() => this.setState({ gamesLost: 0, running: false}),1000)));
-// AdMobInterstitial.addEventListener("interstitialDidClose", () => this.setState({ }));
+    AdMobInterstitial.addEventListener("interstitialWillLeaveApplication", () => (setTimeout(() => this.setState({ gamesLost: 0, running: false,}),1000)));
+    AdMobInterstitial.addEventListener("interstitialDidClose", () => {
+      CoinsAlert();
+      this.setState({coins: this.state.coins + 50});
+    });
   }
+
+  async _cacheResourcesAsync() {
+    return new Promise(async(resolve) => {
+      try {
+        await Font.loadAsync({
+          '04B_19': require('./assets/fonts/04B_19.ttf'),
+          }); 
+      } catch (error) {
+        console.log(error)
+      }
+      resolve()
+      const images = [Images.background,Images.coinbar,Images.purpleMenu,Images.purpleButton,Images.blueButton,Images.floor]
+      const cacheImages = images.map(image => {
+        return Asset.fromModule(image).downloadAsync();
+      });
+      return Promise.all(cacheImages);
+    });
+  }
+
 
 
   async _loadNewPlaybackInstance(playing, audioInstance, looping, sourceMusic) {
@@ -99,8 +125,28 @@ async componentDidMount(){
 
     audioInstance = sound;
     audioInstance.setIsLoopingAsync(looping);
-    audioInstance.playAsync();
+    await audioInstance.playAsync();
   }
+
+  onShare = async (message) => {
+    try {
+      const result = await Share.share({
+        message: message,
+      });
+      if (result.action === Share.sharedAction) {
+        if (result.activityType) {
+          // shared with activity type of result.activityType
+        } else {
+          // shared
+        }
+      } else if (result.action === Share.dismissedAction) {
+        // dismissed
+      }
+    } catch (error) {
+      alert(error.message);
+    }
+  };
+
 
   setupWorld = () => {
       let engine = Matter.Engine.create({ enableSleeping: false});
@@ -294,6 +340,22 @@ readHighscoreData = async (key) => {
     }
   }
 
+  AdAlert = async () =>
+    Alert.alert(
+      "Scepter Dash",
+      "Watch An Ad For 50 Coins?",
+      [
+        {
+          text: "No Thanks",
+          onPress: () => console.log("Cancel Pressed"),
+          style: "cancel"
+        },
+        { text: "Ad Me Up!", onPress: async () => {await this.playAd()} }
+      ],
+      { cancelable: false }
+    );
+
+
   scoreStyle = () => {
     console.log("Style Length " + styles.score.left);
     return {
@@ -348,14 +410,14 @@ readHighscoreData = async (key) => {
 
   async componentWillUnmount() {
     AdMobInterstitial.removeAllListeners();
-    await this.playbackInstance.unloadAsync();
+    await this.playbackInstance.unloadAsync().catch(err => console.log('Error: ', err));
     await this.coinPlaybackInstance.unloadAsync();
     console.log('unmount');
    
   }
 
   render() {
-  if(this.state.fontLoaded){
+  if(this.state.isReady){
 
   return (
     <View style={styles.container}>
@@ -395,7 +457,7 @@ readHighscoreData = async (key) => {
               </View>
             </TouchableOpacity> 
 
-            <TouchableOpacity onPress={async () => {await this.playAd()}} style={styles.menuTouchableButton}>
+            <TouchableOpacity onPress={async () => {await this.AdAlert()}} style={styles.menuTouchableButton}>
               <Image
                 source={Images.purpleButton}
                 style={styles.menuButtonImage} 
@@ -405,7 +467,7 @@ readHighscoreData = async (key) => {
               </View>
             </TouchableOpacity> 
 
-
+            
 
 
             <Text style={styles.highScore}>{"Highscore: " + this.state.highscore }</Text>        
@@ -439,6 +501,16 @@ readHighscoreData = async (key) => {
               <View style={styles.menuButtonView}>
                 <Text style={styles.menuButtonText}>Main Menu</Text>
               </View>
+          </TouchableOpacity> 
+
+          <TouchableOpacity onPress={async () => {await this.onShare( `I'm so kool! I just scored ${this.state.score} points in Scepter Dash! Check out the game here...`)}} style={styles.menuTouchableButton}>
+              <Image
+                source={Images.blueButton}
+                style={styles.menuButtonImage} 
+              />
+              <View style={styles.menuButtonView}>
+                <Text style={styles.shareButtonText}>Share Your Score!</Text>
+              </View>
             </TouchableOpacity> 
             
         </View>
@@ -448,11 +520,16 @@ readHighscoreData = async (key) => {
   }
   else {
     return (
-      <View style={styles.container}>
-      <ActivityIndicator />
-      <StatusBar barStyle="default" />
-      </View>
-    )
+      <AppLoading
+        startAsync={this._cacheResourcesAsync}
+        onFinish={() => this.setState({ isReady: true})}
+        onError={console.warn}
+      />
+      // <View style={styles.container}>
+      // <ActivityIndicator />
+      // <StatusBar barStyle="default" />
+      // </View>
+    );
   }
 
 
@@ -516,6 +593,12 @@ const styles = StyleSheet.create({
   menuButtonText: {
     color: 'white',
     fontSize: 26,
+    textAlign: 'center',
+    fontFamily: '04B_19',
+  },
+  shareButtonText: {
+    color: 'white',
+    fontSize: 20,
     textAlign: 'center',
     fontFamily: '04B_19',
   },
