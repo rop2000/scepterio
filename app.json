@@ -1,13 +1,13 @@
 {
   "expo": {
-    "name": "Scepterio",
-    "slug": "Scepterio",
+    "name": "SLEDIO",
+    "slug": "sledio",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "splash": {
-      "image": "./assets/pandaSplashScreen.gif",
-      "resizeMode": "contain",
+      "image": "./assets/RopStudios_SplashScreen_3.png",
+      "resizeMode": "cover",
       "backgroundColor": "#EBF3DE"
     },
     "updates": {
@@ -18,6 +18,8 @@
     ],
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.ropstudios.sledio",
+      "buildNumber": "1.0.0",
       "config": {
         "googleMobileAdsAppId": "ca-app-pub-6265666136721610~7070964750"
       }
@@ -26,7 +28,9 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
-      }
+      },
+      "package": "com.ropstudios.sledio",
+      "versionCode": 1
     },
     "web": {
       "favicon": "./assets/favicon.png"

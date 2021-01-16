@@ -83,24 +83,39 @@ async componentDidMount(){
     });
   }
 
+  // async _cacheResourcesAsync() {
+  //   return new Promise(async(resolve) => {
+  //     try {
+  //       await Font.loadAsync({
+  //         '04B_19': require('./assets/fonts/04B_19.ttf'),
+  //         }); 
+  //     } catch (error) {
+  //       console.log(error)
+  //     }
+  //     resolve()
+  //     const images = [Images.background,Images.coinbar,Images.purpleMenu,Images.purpleButton,Images.blueButton,Images.floor]
+  //     const cacheImages = images.map(image => {
+  //       return Asset.fromModule(image).downloadAsync();
+  //     });
+  //     return Promise.all(cacheImages);
+  //   });
+  // }
   async _cacheResourcesAsync() {
-    return new Promise(async(resolve) => {
-      try {
-        await Font.loadAsync({
-          '04B_19': require('./assets/fonts/04B_19.ttf'),
-          }); 
-      } catch (error) {
-        console.log(error)
-      }
-      resolve()
-      const images = [Images.background,Images.coinbar,Images.purpleMenu,Images.purpleButton,Images.blueButton,Images.floor]
-      const cacheImages = images.map(image => {
-        return Asset.fromModule(image).downloadAsync();
-      });
-      return Promise.all(cacheImages);
-    });
-  }
+    await Promise.all([
+      Asset.loadAsync([
+        require('./assets/images/background.gif'),
+        require('./assets/images/purple_panel.png'),
+        require('./assets/images/purple_button.png'),
+        require('./assets/images/blue_button.png'),
+        require('./assets/images/floor_tile.png'),
+        require('./assets/images/coinbar.png'),
+      ]),
+      Font.loadAsync({
+                '04B_19': require('./assets/fonts/04B_19.ttf'),
+      }), 
 
+    ]);
+  }
 
 
   async _loadNewPlaybackInstance(playing, audioInstance, looping, sourceMusic) {
@@ -410,8 +425,14 @@ readHighscoreData = async (key) => {
 
   async componentWillUnmount() {
     AdMobInterstitial.removeAllListeners();
-    await this.playbackInstance.unloadAsync().catch(err => console.log('Error: ', err));
-    await this.coinPlaybackInstance.unloadAsync();
+    if (this.playbackInstance !== null) {
+      await this.playbackInstance.unloadAsync();
+    } 
+    
+    if (this.coinPlaybackInstance !== null) {
+      await this.coinPlaybackInstance.unloadAsync();
+    }
+
     console.log('unmount');
    
   }
@@ -422,7 +443,7 @@ readHighscoreData = async (key) => {
   return (
     <View style={styles.container}>
       
-      <Image source={Images.background} style={styles.backgroundImage} resizeMode="cover" />
+      <Image source={require('./assets/images/background.gif')} style={styles.backgroundImage} resizeMode="cover" />
 
       <GameEngine 
         ref={(ref) => { this.gameEngine = ref; }}
@@ -476,7 +497,9 @@ readHighscoreData = async (key) => {
       
 }
 
-      {this.state.showAdView && <View style={styles.fullScreen}>
+      {this.state.showAdView && 
+      <TouchableOpacity onPress={this.reset} style={styles.fullScreenButton}>
+      <View style={styles.fullScreen}>
               <Image
                 source={Images.purpleButton}
                 style={styles.menuButtonImage} 
@@ -484,7 +507,8 @@ readHighscoreData = async (key) => {
               <View style={styles.menuButtonView}>
                 <Text style={styles.menuButtonText}>Ad Loading...</Text>
               </View>
-            </View> }
+            </View>
+            </TouchableOpacity> }
             
 
 {/* <TouchableOpacity onPress={this.startGame} style={styles.fullScreenButton}> */}
